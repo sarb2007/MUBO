@@ -1,12 +1,15 @@
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-import requests
 
 from .file_tools import list_files, read_file, write_file, search_code
 from .agent import handle_request
+from .ai import ask_local_ai
+from .memory import create_memory_table, save_memory, get_recent_memories
+from .rag import build_code_context
 
 app = FastAPI()
+create_memory_table()
 
 
 class ChatRequest(BaseModel):
@@ -16,39 +19,6 @@ class WriteFileRequest(BaseModel):
     file_path: str
     content: str
 
-def ask_local_ai(message: str) -> str:
-    """Send a message to the local model running in LM Studio."""
-
-    url = "http://127.0.0.1:1234/v1/chat/completions"
-
-    data = {
-        "model": "local-model",
-        "messages": [
-            {
-                "role": "system",
-                "content": (
-                    "You are MUBO, a local AI coding assistant. "
-                    "Keep answers short, clear, and practical. "
-                    "For simple questions, answer in 2-5 sentences. "
-                    "Only give detailed explanations when the user asks for them."
-                ),
-            },
-            {
-                "role": "user",
-                "content": message,
-            },
-        ],
-        "temperature": 0.2,
-        "max_tokens": 250,
-    }
-
-    response = requests.post(url, json=data)
-
-    response.raise_for_status()
-
-    result = response.json()
-
-    return result["choices"][0]["message"]["content"]
 
 
 @app.post("/api/chat")
@@ -58,12 +28,57 @@ def chat(request: ChatRequest):
     tool_result = handle_request(request.message)
 
     if tool_result is not None:
+        save_memory(request.message, tool_result)
+
         return {
             "response": tool_result
         }
 
-    # If no tool is needed, ask the local AI normally.
-    answer = ask_local_ai(request.message)
+    # Get recent conversations.
+    memories = get_recent_memories(5)
+
+    # Get relevant code from the workspace.
+    code_context = build_code_context(request.message)
+
+    prompt_parts = []
+
+    if memories:
+        memory_text = "\n\n".join(
+            f"User: {user_message}\n"
+            f"MUBO: {assistant_response}"
+            for user_message, assistant_response in reversed(memories)
+        )
+
+        prompt_parts.append(
+            "Previous conversation:\n"
+            f"{memory_text}"
+        )
+
+    if code_context:
+        prompt_parts.append(
+            "Relevant workspace code:\n"
+            f"{code_context}"
+        )
+
+    prompt_parts.append(
+        "Current user question:\n"
+        f"{request.message}"
+    )
+
+    prompt_parts.append(
+        "Answer the current question directly. "
+        "Use the previous conversation and workspace code "
+        "only when relevant. "
+        "Do not invent code or previous conversations."
+    )
+
+    prompt = "\n\n".join(prompt_parts)
+
+    # Ask the local AI.
+    answer = ask_local_ai(prompt)
+
+    # Save the conversation.
+    save_memory(request.message, answer)
 
     return {
         "response": answer

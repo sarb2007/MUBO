@@ -65,7 +65,7 @@ def git_status():
     result = subprocess.run(
         "git status --short",
         shell=True,
-        cwd="workspace",
+        cwd=".",
         capture_output=True,
         text=True,
         timeout=30
@@ -84,7 +84,43 @@ def git_diff():
     result = subprocess.run(
         "git diff",
         shell=True,
-        cwd="workspace",
+        cwd=".",
+        capture_output=True,
+        text=True,
+        timeout=30
+    )
+
+    return {
+        "return_code": result.returncode,
+        "output": result.stdout,
+        "error": result.stderr
+    }
+
+def git_log():
+    """Show recent Git commits."""
+
+    result = subprocess.run(
+        "git log --oneline -10",
+        shell=True,
+        cwd=".",
+        capture_output=True,
+        text=True,
+        timeout=30
+    )
+
+    return {
+        "return_code": result.returncode,
+        "output": result.stdout,
+        "error": result.stderr
+    }
+
+def git_show():
+    """Show the latest Git commit."""
+
+    result = subprocess.run(
+        "git show --stat --oneline HEAD",
+        shell=True,
+        cwd=".",
         capture_output=True,
         text=True,
         timeout=30

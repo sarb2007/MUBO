@@ -2,6 +2,9 @@ const form = document.getElementById("chat-form");
 const input = document.getElementById("message-input");
 const chat = document.getElementById("chat");
 
+let timerInterval = null;
+let startTime = 0;
+
 
 form.addEventListener("submit", async (event) => {
 
@@ -13,31 +16,52 @@ form.addEventListener("submit", async (event) => {
         return;
     }
 
-    // Show the user's message immediately.
     addMessage(message, "user");
 
     input.value = "";
 
-    // For now, we are just testing the connection.
-    const response = await fetch("/api/chat", {
-        method: "POST",
+    // Show processing indicator.
+    const typingIndicator = addTypingIndicator();
 
-        headers: {
-            "Content-Type": "application/json"
-        },
+    // Start response timer.
+    startTimer();
 
-        body: JSON.stringify({
-            message: message
-        })
-    });
+    try {
 
-    const data = await response.json();
+        const response = await fetch("/api/chat", {
+            method: "POST",
 
-    addMessage(data.response, "ai");
+            headers: {
+                "Content-Type": "application/json"
+            },
+
+            body: JSON.stringify({
+                message: message
+            })
+        });
+
+        const data = await response.json();
+
+        typingIndicator.remove();
+
+        const elapsed = stopTimer();
+
+        addMessage(data.response, "ai", elapsed);
+
+    } catch (error) {
+
+        typingIndicator.remove();
+
+        const elapsed = stopTimer();
+
+        addMessage("Something went wrong.", "ai", elapsed);
+
+        console.error(error);
+    }
 });
 
 
-function addMessage(text, sender) {
+function addMessage(text, sender, responseTime = null) {
 
     const message = document.createElement("div");
 
@@ -47,6 +71,87 @@ function addMessage(text, sender) {
 
     chat.appendChild(message);
 
-    // Keep the newest message visible.
+    if (responseTime !== null) {
+
+        const time = document.createElement("div");
+
+        time.className = "response-time";
+
+        time.textContent = `⏱ ${responseTime}s`;
+
+        chat.appendChild(time);
+    }
+
     chat.scrollTop = chat.scrollHeight;
+}
+
+
+function addTypingIndicator() {
+
+    const indicator = document.createElement("div");
+
+    indicator.className = "typing-indicator";
+
+    indicator.innerHTML = `
+        <span></span>
+        <span></span>
+        <span></span>
+    `;
+
+    chat.appendChild(indicator);
+
+    chat.scrollTop = chat.scrollHeight;
+
+    return indicator;
+}
+
+
+function startTimer() {
+
+    startTime = performance.now();
+
+    timerInterval = setInterval(() => {
+
+        const elapsed = (performance.now() - startTime) / 1000;
+
+        updateTimer(elapsed);
+
+    }, 100);
+}
+
+
+function updateTimer(seconds) {
+
+    let timer = document.getElementById("live-timer");
+
+    if (!timer) {
+
+        timer = document.createElement("div");
+
+        timer.id = "live-timer";
+
+        timer.className = "live-timer";
+
+        chat.appendChild(timer);
+    }
+
+    timer.textContent = `⏱ ${seconds.toFixed(1)}s`;
+
+    chat.scrollTop = chat.scrollHeight;
+}
+
+
+function stopTimer() {
+
+    clearInterval(timerInterval);
+
+    const elapsed = (performance.now() - startTime) / 1000;
+
+    const timer = document.getElementById("live-timer");
+
+    if (timer) {
+        timer.remove();
+    }
+
+    return elapsed.toFixed(2);
 }

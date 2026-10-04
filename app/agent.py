@@ -1,5 +1,6 @@
 from .file_tools import list_files, read_file, write_file, search_code
-from .terminal_tools import run_command, run_tests, git_status, git_diff
+from .terminal_tools import run_command, run_tests, git_status, git_diff, git_log, git_show
+from .ai import ask_local_ai
 
 def handle_request(message):
     """Decide which workspace tool is needed."""
@@ -73,6 +74,55 @@ def handle_request(message):
                 return result["output"] or "No changes found."
 
             return result["error"] or "Git diff failed."
+
+        except Exception as error:
+            return str(error)
+
+    if message_lower in ["git log", "log"]:
+        try:
+            result = git_log()
+
+            if result["return_code"] == 0:
+                return result["output"] or "No commits found."
+
+            return result["error"] or "Git log failed."
+
+        except Exception as error:
+            return str(error)
+
+    if message_lower in ["git show", "show commit"]:
+        try:
+            result = git_show()
+
+            if result["return_code"] == 0:
+                return result["output"] or "No commit found."
+
+            return result["error"] or "Git show failed."
+
+        except Exception as error:
+            return str(error)
+
+    if message_lower in ["review my changes", "review changes", "code review"]:
+        try:
+            result = git_diff()
+
+            if result["return_code"] != 0:
+                return result["error"] or "Could not get Git changes."
+
+            if not result["output"]:
+                return "There are no code changes to review."
+
+            prompt = (
+                "You are reviewing a Git diff from a Python software project.\n"
+                "Only discuss issues that are directly supported by the diff.\n"
+                "Do not invent files, code, or problems that are not shown.\n"
+                "If the code looks correct, say so.\n"
+                "Focus on real bugs, security risks, and practical improvements.\n"
+                "Keep the review concise and explain why each issue matters.\n\n"
+                f"GIT DIFF:\n{result['output']}"
+            )
+
+            return ask_local_ai(prompt, max_tokens=500)
 
         except Exception as error:
             return str(error)
