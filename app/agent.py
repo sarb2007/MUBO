@@ -2,10 +2,42 @@ from .file_tools import list_files, read_file, write_file, search_code
 from .terminal_tools import run_command, run_tests, git_status, git_diff, git_log, git_show
 from .ai import ask_local_ai
 
+pending_edit = None
 def handle_request(message):
     """Decide which workspace tool is needed."""
 
     message_lower = message.lower()
+    global pending_edit
+
+    if message_lower == "approve":
+
+        if pending_edit is None:
+            return "There is no pending edit."
+
+        try:
+            file_path = pending_edit["file_path"]
+            content = pending_edit["content"]
+
+            result = write_file(file_path, content)
+
+            pending_edit = None
+
+            return result
+
+        except Exception as error:
+            return str(error)
+
+
+    if message_lower == "reject":
+
+        if pending_edit is None:
+            return "There is no pending edit."
+
+        file_path = pending_edit["file_path"]
+
+        pending_edit = None
+
+        return f"Edit for {file_path} rejected."
 
     if "what files" in message_lower or "list files" in message_lower:
         files = list_files()
@@ -37,6 +69,49 @@ def handle_request(message):
             )
 
         return "\n".join(lines)
+
+    if message_lower.startswith("edit "):
+        request = message[5:].strip()
+
+        if ":" not in request:
+            return "Use this format: edit filename.py: describe the change"
+
+        file_path, instruction = request.split(":", 1)
+
+        file_path = file_path.strip()
+        instruction = instruction.strip()
+
+        try:
+            current_code = read_file(file_path)
+
+            prompt = (
+                "You are editing a source code file.\n"
+                "Modify the code according to the user's instruction.\n"
+                "Return ONLY the complete updated file content.\n"
+                "Do not use markdown code fences.\n"
+                "Do not explain anything.\n\n"
+                f"FILE: {file_path}\n\n"
+                f"CURRENT CODE:\n{current_code}\n\n"
+                f"USER INSTRUCTION:\n{instruction}"
+            )
+
+            updated_code = ask_local_ai(prompt, max_tokens=1000)
+            
+
+            pending_edit = {
+                "file_path": file_path,
+                "content": updated_code.strip()
+            }
+
+            return (
+                f"Proposed changes for {file_path}:\n\n"
+                f"{updated_code.strip()}\n\n"
+                "⚠️ File has NOT been changed yet.\n"
+                "Type 'approve' to apply or 'reject' to cancel."
+            )
+
+        except Exception as error:
+            return str(error)
 
     if message_lower.startswith("write "):
         request = message[6:].strip()
