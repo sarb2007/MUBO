@@ -1,2 +1,2 @@
-print("Hello from MUBO!")
+print("Hello MUBO!")
 print("Git integration test")
