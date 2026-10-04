@@ -1,3 +1,30 @@
+const themeButton = document.getElementById("theme-button");
+
+if (themeButton) {
+
+    const savedTheme = localStorage.getItem("mubo-theme");
+
+    if (savedTheme === "dark") {
+        document.body.classList.add("dark");
+        themeButton.textContent = "☀";
+    }
+
+    themeButton.addEventListener("click", () => {
+
+        document.body.classList.toggle("dark");
+
+        const isDark = document.body.classList.contains("dark");
+
+        localStorage.setItem(
+            "mubo-theme",
+            isDark ? "dark" : "light"
+        );
+
+        themeButton.textContent = isDark ? "☀" : "◐";
+    });
+}
+
+
 const form = document.getElementById("chat-form");
 const input = document.getElementById("message-input");
 const chat = document.getElementById("chat");
